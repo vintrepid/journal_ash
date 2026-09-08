@@ -1,7 +1,7 @@
 defmodule JournalAsh.MixProject do
   use Mix.Project
 
-  @version "0.1.0-alpha.1"
+  @version "0.1.0-alpha.2"
   @source_url "https://github.com/vintrepid/journal_ash"
 
   def project do
@@ -29,11 +29,13 @@ defmodule JournalAsh.MixProject do
   defp deps do
     [
       ash_dependency(),
+      {:cloak, "~> 1.1"},
       # Decimal 3.0.0 contains the upstream fix for CVE-2026-32686. Hex's
       # advisory feed currently marks every version affected, so the project
       # acknowledgement above is paired with this enforced safe range.
       {:decimal, ">= 3.0.0 and < 4.0.0"},
       {:telemetry, "~> 1.0"},
+      {:jason, "~> 1.4"},
       # Ash exposes generators at runtime and already requires StreamData. We
       # declare our direct use explicitly instead of applying a conflicting
       # test-only restriction to the same dependency.

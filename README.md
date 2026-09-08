@@ -10,7 +10,7 @@ that policy centrally.
 
 ## Status
 
-`0.1.0-alpha.1` is a tested foundation, not a production journal backend. It
+`0.1.0-alpha.2` is a tested foundation, not a production journal backend. It
 currently provides:
 
 - an OTP Logger primary filter that accepts existing Logger events;
@@ -20,6 +20,8 @@ currently provides:
 - global conventional-output control without adding internal event metadata;
 - a message-free telemetry projection selected by the same policy;
 - a canonical embedded Ash observation resource;
+- a bounded, versioned Cloak codec that ciphertext stores can use to seal the
+  complete canonical entry with a host-owned vault;
 - a bounded, idempotent, volatile memory store for tests and local evaluation;
 - process-local recursion protection, sanitized emergency output, health, and
   graceful flush;
@@ -71,7 +73,7 @@ Until the first Hex release, use the Git repository:
 ```elixir
 def deps do
   [
-    {:journal_ash, github: "vintrepid/journal_ash", tag: "v0.1.0-alpha.1"}
+    {:journal_ash, github: "vintrepid/journal_ash", tag: "v0.1.0-alpha.2"}
   ]
 end
 ```
@@ -270,6 +272,66 @@ domain, repository, tenancy, authorization, encryption, migrations, and
 retention policy remain explicit. The planned JournalAsh extension will generate
 that contract rather than silently choosing a database.
 
+### Cloak-sealed entries
+
+JournalAsh depends directly on Cloak and exposes `JournalAsh.SealedEntry` as the
+encryption boundary for store adapters. It encrypts the complete, already
+validated `JournalAsh.Entry`; only a versioned format marker and the entry UUID
+remain clear. The clear UUID is deliberate so a store can preserve JournalAsh's
+idempotency contract across retries.
+
+The application defines, configures, and supervises its own vault:
+
+```elixir
+defmodule MyApp.JournalVault do
+  use Cloak.Vault, otp_app: :my_app
+
+  @impl GenServer
+  def init(config) do
+    key =
+      "JOURNAL_VAULT_KEY_BASE64"
+      |> System.fetch_env!()
+      |> Base.decode64!()
+
+    {:ok,
+     Keyword.put(config, :ciphers,
+       default: {Cloak.Ciphers.AES.GCM, tag: "JOURNAL.AES.GCM.V1", key: key}
+     )}
+  end
+end
+```
+
+Use an authenticated cipher such as AES-GCM. Cloak allows arbitrary host
+ciphers; JournalAsh can validate the interface and returned data shapes but
+cannot prove that an arbitrary cipher is confidential or tamper-resistant.
+Cipher tags allow the host to retain older decrypting keys while a new default
+key writes new values.
+
+A ciphertext store seals before persistence and never substitutes the original
+entry when sealing fails:
+
+```elixir
+with {:ok, sealed} <- JournalAsh.SealedEntry.seal(entry, MyApp.JournalVault) do
+  MyApp.CiphertextJournal.insert(JournalAsh.SealedEntry.to_map(sealed))
+end
+```
+
+`open/2` accepts the sealed value or its exact JSON-decoded map and returns a
+revalidated `JournalAsh.Entry`. Both encoding and decoding have fixed limits;
+the JSON plaintext is capped at 256 KiB and its URL-safe Base64 ciphertext at
+approximately 343 KiB. Errors are stable atoms and never contain the entry,
+ciphertext, key material, or the original Cloak exception.
+
+The codec does not start the vault. An adapter used during JournalAsh startup
+must make the vault ready in its own supervised store tree or an earlier OTP
+application; the host application's top-level supervisor starts after its
+dependencies and is too late for guaranteed capture of startup observations.
+
+This feature is optional and does not change `JournalAsh.Store.Memory`, which
+continues to retain plaintext in volatile memory. Adding the dependency alone
+does not encrypt existing logs or stores, and JournalAsh intentionally supplies
+no plaintext fallback for an encryption-required adapter.
+
 ## Privacy
 
 Journal normalization never calls `inspect/2` on arbitrary values. It bounds
@@ -287,6 +349,13 @@ unchanged. It is not a content-level secret scanner. A password embedded in the
 free-form message string still looks like ordinary text. Do not log credentials,
 message or document bodies, authorization headers, provider payloads, or private
 Solid data. See [SECURITY.md](SECURITY.md) for the reporting and threat model.
+
+Sanitization and encryption solve different problems. Sanitization removes or
+bounds selected values before retention. Cloak encryption is reversible storage
+protection for whatever remains. The application server and its configured vault
+can decrypt it, and plaintext necessarily exists in the Logger caller, bounded
+intake, and encryption process. This is not client-held-key end-to-end encryption
+and does not provide Proton- or Signal-style privacy from the service itself.
 
 ## Development
 

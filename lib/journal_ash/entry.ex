@@ -6,6 +6,13 @@ defmodule JournalAsh.Entry do
   repository on host applications. Durable adapters can map it to their own
   Ash resource. The only create action in this alpha records observations;
   committed facts require a later transaction-aware Ash integration.
+
+  `message` and `metadata` are sensitive plaintext values. Sanitization bounds
+  and redacts selected inputs but is not encryption. A ciphertext store may use
+  `JournalAsh.SealedEntry` with a host-owned Cloak vault for server-side
+  encryption at rest; the default memory store remains plaintext. Because the
+  service holds that vault key and plaintext exists before sealing, this is not
+  client-held-key end-to-end encryption or privacy from the service itself.
   """
 
   use Ash.Resource,

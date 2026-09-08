@@ -59,6 +59,33 @@ the intake process and must remain fast and non-blocking.
 The bundled memory store is volatile and intended only for tests and local
 evaluation. It provides neither durable retention nor encryption at rest.
 
+## Encryption boundary
+
+`JournalAsh.SealedEntry` lets a ciphertext store encrypt the complete canonical
+entry with a host-owned `Cloak.Vault`. The clear format, version, and entry UUID
+are storage metadata; event, level, time, policy decision, message, and metadata
+are encrypted. The UUID is duplicated inside the encrypted payload and must
+match when opened.
+
+Hosts must configure an authenticated cipher such as `Cloak.Ciphers.AES.GCM`,
+load keys from runtime secret management, supervise the vault before the store
+uses it, and retain old tagged decrypting keys during rotation. JournalAsh does
+not generate keys, select a repository, inspect arbitrary cipher strength, or
+fall back to plaintext after a sealing failure. Codec failures expose only
+bounded error atoms and never include Cloak exceptions or protected values.
+
+The codec is not enabled by adding the dependency. The default memory store is
+still plaintext; a production adapter must explicitly seal and persist only the
+sealed map. Encryption at rest also does not provide durability, authorization,
+tenant isolation, deletion policy, or proof that an application transaction
+committed.
+
+Cloak is server-side reversible encryption, not obfuscation and not client-held-
+key end-to-end encryption. The service can decrypt while it holds the vault key,
+and plaintext exists before sealing. It does not provide Proton- or Signal-style
+privacy from the service operator. Journal sanitization remains a separate data-
+minimization control and is not a content-level secret scanner.
+
 ## Dependency-audit acknowledgement
 
 The Hex advisory record for `EEF-CVE-2026-32686` currently marks every Decimal
