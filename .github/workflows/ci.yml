@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - profile: minimum
+            otp: "27"
+            elixir: "1.17"
+            ash-version: "3.33.0"
+            ash-git: ""
+            ash-ref: ""
+          - profile: current
+            otp: "28"
+            elixir: "1.20"
+            ash-version: ""
+            ash-git: ""
+            ash-ref: ""
+          - profile: ash-lotus-core
+            otp: "28"
+            elixir: "1.20"
+            ash-version: ""
+            ash-git: https://github.com/vintrepid/ash_lotus_core.git
+            ash-ref: 88c3fb4243de5c166ca1a71191bf10f5222813d1
+    env:
+      JOURNAL_ASH_ASH_VERSION: ${{ matrix['ash-version'] }}
+      JOURNAL_ASH_ASH_GIT: ${{ matrix['ash-git'] }}
+      JOURNAL_ASH_ASH_REF: ${{ matrix['ash-ref'] }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: erlef/setup-beam@54075bcc5e249e4758d363f27d099f55d843f124 # v1
+        with:
+          otp-version: ${{ matrix.otp }}
+          elixir-version: ${{ matrix.elixir }}
+      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            deps
+            _build
+          key: ${{ runner.os }}-${{ matrix.profile }}-mix-${{ hashFiles('**/mix.lock') }}
+      - if: matrix.profile == 'current'
+        run: mix deps.update --all
+      - if: matrix.profile != 'current'
+        run: mix deps.get
+      - run: mix hex.audit
+      - run: mix format --check-formatted
+      - run: mix compile --warnings-as-errors
+      - run: mix test
+      - run: mix docs
+      - if: matrix.profile == 'current'
+        run: mix hex.build
