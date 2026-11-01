@@ -15,7 +15,7 @@ defmodule JournalAsh.MixProject do
       description: "A bounded activity journal and Logger integration for Ash applications",
       # CTR is unreachable: every vault key is validated as AES-256-GCM.
       # See SECURITY.md and the encryption rejection/tampering tests.
-      hex: [ignore_advisories: ["EEF-CVE-2026-32686", "EEF-CVE-2026-95105"]],
+      hex: [ignore_advisories: ["EEF-CVE-2026-95105"]],
       package: package(),
       docs: docs()
     ]

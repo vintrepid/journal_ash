@@ -175,6 +175,20 @@ defmodule JournalAsh.SealedEntryTest do
              |> SealedEntry.open(JournalAsh.TestVault)
   end
 
+  test "rejects a running vault with CTR as default or as a decryption fallback" do
+    entry = private_entry()
+    assert {:ok, sealed} = SealedEntry.seal(entry, JournalAsh.TestVault)
+    ctr = {Cloak.Ciphers.AES.CTR, tag: "CTR.V0", key: @key}
+    gcm = {Cloak.Ciphers.AES.GCM, tag: @cipher_tag, key: @key}
+
+    for ciphers <- [[default: ctr], [default: gcm, old: ctr]] do
+      start_supervised!({JournalAsh.TestCTRVault, ciphers: ciphers})
+      assert {:error, :invalid_vault} = SealedEntry.seal(entry, JournalAsh.TestCTRVault)
+      assert {:error, :invalid_vault} = SealedEntry.open(sealed, JournalAsh.TestCTRVault)
+      stop_supervised!(JournalAsh.TestCTRVault)
+    end
+  end
+
   defp private_entry do
     envelope = %Envelope{
       id: Ash.UUIDv7.generate(),

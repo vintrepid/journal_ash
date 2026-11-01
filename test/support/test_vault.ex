@@ -23,3 +23,8 @@ defmodule JournalAsh.TestRaisingVault do
   def encrypt(_plaintext), do: raise("synthetic vault failure with private detail")
   def decrypt(_ciphertext), do: raise("synthetic vault failure with private detail")
 end
+
+defmodule JournalAsh.TestCTRVault do
+  @moduledoc false
+  use Cloak.Vault, otp_app: :journal_ash
+end
