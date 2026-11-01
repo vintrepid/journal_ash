@@ -63,7 +63,7 @@ defmodule JournalAsh.MixProject do
         {:ash, git: git, ref: reference, override: true}
 
       true ->
-        {:ash, nonempty_env("JOURNAL_ASH_ASH_VERSION", "~> 3.33")}
+        {:ash, nonempty_env("JOURNAL_ASH_ASH_VERSION", ">= 3.33.0")}
     end
   end
 
