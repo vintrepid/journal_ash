@@ -13,7 +13,9 @@ defmodule JournalAsh.MixProject do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       description: "A bounded activity journal and Logger integration for Ash applications",
-      hex: [ignore_advisories: ["EEF-CVE-2026-32686"]],
+      # CTR is unreachable: every vault key is validated as AES-256-GCM.
+      # See SECURITY.md and the encryption rejection/tampering tests.
+      hex: [ignore_advisories: ["EEF-CVE-2026-32686", "EEF-CVE-2026-95105"]],
       package: package(),
       docs: docs()
     ]
@@ -29,19 +31,19 @@ defmodule JournalAsh.MixProject do
   defp deps do
     [
       ash_dependency(),
-      {:cloak, "~> 1.1"},
+      {:cloak, "~> 1.1 and >= 1.1.4"},
       # Decimal 3.0.0 contains the upstream fix for CVE-2026-32686. Hex's
       # advisory feed currently marks every version affected, so the project
       # acknowledgement above is paired with this enforced safe range.
       {:decimal, ">= 3.0.0 and < 4.0.0"},
-      {:telemetry, "~> 1.0"},
-      {:jason, "~> 1.4"},
+      {:telemetry, "~> 1.4 and >= 1.4.2"},
+      {:jason, "~> 1.4 and >= 1.4.5"},
       # Ash exposes generators at runtime and already requires StreamData. We
       # declare our direct use explicitly instead of applying a conflicting
       # test-only restriction to the same dependency.
-      {:stream_data, "~> 1.0"},
-      {:sourceror, "~> 1.12", only: [:dev, :test], runtime: false},
-      {:ex_doc, "~> 0.38", only: :dev, runtime: false}
+      {:stream_data, "~> 1.4"},
+      {:sourceror, "~> 1.13", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.40.4", only: :dev, runtime: false}
     ]
   end
 

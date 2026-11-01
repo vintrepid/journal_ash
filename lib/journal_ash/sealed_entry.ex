@@ -14,9 +14,8 @@ defmodule JournalAsh.SealedEntry do
   timestamp, decision, message, and metadata. The encrypted payload repeats the
   ID and format; `open/2` rejects mismatches after authenticated decryption.
 
-  Use an authenticated Cloak cipher such as `Cloak.Ciphers.AES.GCM`. This
-  module can validate Cloak's interface and returned shapes, but it cannot prove
-  that a host-supplied cipher provides confidentiality or integrity.
+  Only `Cloak.Ciphers.AES.GCM` is accepted, for every configured encryption
+  and rotation key. CTR and custom ciphers are rejected before processing data.
 
   The default `JournalAsh.Store.Memory` does not use this codec and remains
   plaintext and volatile. Merely depending on Cloak does not encrypt a store.
@@ -82,11 +81,11 @@ defmodule JournalAsh.SealedEntry do
   """
   @spec seal(Entry.t(), module()) :: {:ok, t()} | {:error, error()}
   def seal(%Entry{} = entry, vault) when is_atom(vault) do
-    with :ok <- validate_vault(vault),
+    with {:ok, config} <- JournalAsh.Encryption.config(vault),
          {:ok, entry} <- canonical_entry(entry),
          {:ok, plaintext} <- encode_entry(entry),
          :ok <- bounded_plaintext(plaintext, :entry_too_large),
-         {:ok, ciphertext} <- encrypt(vault, plaintext),
+         {:ok, ciphertext} <- encrypt(config, plaintext),
          :ok <- bounded_ciphertext(ciphertext) do
       {:ok,
        %__MODULE__{
@@ -107,10 +106,10 @@ defmodule JournalAsh.SealedEntry do
   """
   @spec open(t() | map(), module()) :: {:ok, Entry.t()} | {:error, error()}
   def open(sealed, vault) when is_atom(vault) do
-    with :ok <- validate_vault(vault),
+    with {:ok, config} <- JournalAsh.Encryption.config(vault),
          {:ok, sealed} <- from_map(sealed),
          {:ok, ciphertext} <- decode_ciphertext(sealed.ciphertext),
-         {:ok, plaintext} <- decrypt(vault, ciphertext),
+         {:ok, plaintext} <- decrypt(config, ciphertext),
          :ok <- bounded_plaintext(plaintext, :invalid_plaintext),
          {:ok, payload} <- decode_json(plaintext),
          {:ok, attributes} <- decode_payload(payload, sealed.entry_id),
@@ -339,8 +338,8 @@ defmodule JournalAsh.SealedEntry do
   defp valid_encoded_ciphertext?(encoded),
     do: match?({:ok, _ciphertext}, decode_ciphertext(encoded))
 
-  defp encrypt(vault, plaintext) do
-    case vault.encrypt(plaintext) do
+  defp encrypt(config, plaintext) do
+    case Cloak.Vault.encrypt(config, plaintext) do
       {:ok, ciphertext} when is_binary(ciphertext) -> {:ok, ciphertext}
       _failure -> {:error, :encryption_failed}
     end
@@ -350,8 +349,8 @@ defmodule JournalAsh.SealedEntry do
     _kind, _reason -> {:error, :encryption_failed}
   end
 
-  defp decrypt(vault, ciphertext) do
-    case vault.decrypt(ciphertext) do
+  defp decrypt(config, ciphertext) do
+    case Cloak.Vault.decrypt(config, ciphertext) do
       {:ok, plaintext} when is_binary(plaintext) -> {:ok, plaintext}
       _failure -> {:error, :decryption_failed}
     end
@@ -359,17 +358,6 @@ defmodule JournalAsh.SealedEntry do
     _error -> {:error, :decryption_failed}
   catch
     _kind, _reason -> {:error, :decryption_failed}
-  end
-
-  defp validate_vault(vault) do
-    if Code.ensure_loaded?(vault) and function_exported?(vault, :encrypt, 1) and
-         function_exported?(vault, :decrypt, 1) do
-      :ok
-    else
-      {:error, :invalid_vault}
-    end
-  rescue
-    _error -> {:error, :invalid_vault}
   end
 
   defp valid_entry_id?(entry_id) when is_binary(entry_id) and byte_size(entry_id) == 36 do

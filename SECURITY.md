@@ -94,3 +94,22 @@ and [Decimal's upstream advisory](https://github.com/ericmj/decimal/security/adv
 identify 3.0.0 as the fixed release. JournalAsh therefore requires Decimal 3.x and
 narrowly acknowledges that advisory ID so `mix hex.audit` remains useful for
 all other findings. Remove the acknowledgement when Hex corrects its feed.
+
+## AES-GCM enforcement
+
+All encryption and rotation keys must use `Cloak.Ciphers.AES.GCM` with a
+32-byte key and a distinct tag. CTR, including legacy CTR decryption fallback,
+is rejected. JournalAsh validates the running vault configuration and invokes
+Cloak with that validated configuration; SolidAsh validates its vault at startup.
+Tests cover CTR rejection, rotation, tampering and wrong keys.
+
+EEF-CVE-2026-95105 applies to Cloak's unauthenticated CTR ciphers. The Hex
+package-level audit cannot distinguish cipher selection. This one advisory ID
+is acknowledged because the affected modes are unreachable, following the
+[EEF workaround](https://cna.erlef.org/cves/CVE-2026-95105.html). This does not
+permit CTR or suppress any other advisory. Revisit when Cloak removes those
+modes or Hex supports configuration-sensitive findings.
+
+Hosts with existing CTR ciphertext must migrate it to GCM with the old key
+in a separate trusted migration before adopting this version. The runtime
+never decrypts CTR and never silently discards or rewrites stored data.

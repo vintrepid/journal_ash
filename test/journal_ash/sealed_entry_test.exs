@@ -132,23 +132,23 @@ defmodule JournalAsh.SealedEntryTest do
     oversized = %{private_entry() | message: String.duplicate("private", 8_193)}
     wrong_kind = %{private_entry() | kind: :committed_fact}
 
-    assert {:error, :invalid_entry} = SealedEntry.seal(oversized, JournalAsh.TestRaisingVault)
-    assert {:error, :invalid_entry} = SealedEntry.seal(wrong_kind, JournalAsh.TestRaisingVault)
+    assert {:error, :invalid_entry} = SealedEntry.seal(oversized, JournalAsh.TestVault)
+    assert {:error, :invalid_entry} = SealedEntry.seal(wrong_kind, JournalAsh.TestVault)
   end
 
   test "returns only opaque errors for unavailable or invalid vault behavior" do
     entry = private_entry()
 
     assert {:error, :invalid_vault} = SealedEntry.seal(entry, String)
-    assert {:error, :encryption_failed} = SealedEntry.seal(entry, JournalAsh.TestInvalidVault)
-    assert {:error, :encryption_failed} = SealedEntry.seal(entry, JournalAsh.TestRaisingVault)
+    assert {:error, :invalid_vault} = SealedEntry.seal(entry, JournalAsh.TestInvalidVault)
+    assert {:error, :invalid_vault} = SealedEntry.seal(entry, JournalAsh.TestRaisingVault)
 
     assert {:ok, sealed} = SealedEntry.seal(entry, JournalAsh.TestVault)
 
-    assert {:error, :decryption_failed} =
+    assert {:error, :invalid_vault} =
              SealedEntry.open(sealed, JournalAsh.TestInvalidVault)
 
-    assert {:error, :decryption_failed} =
+    assert {:error, :invalid_vault} =
              SealedEntry.open(sealed, JournalAsh.TestRaisingVault)
   end
 

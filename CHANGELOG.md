@@ -16,3 +16,9 @@
 - Add an embedded Ash entry contract and volatile memory adapter.
 - Separate Logger observations from transaction-linked committed facts.
 - Add health and flush operations.
+
+## Unreleased
+
+- Require AES-256-GCM for all vault keys; reject CTR and legacy CTR fallback.
+- Journal sealing now requires a running configured Cloak vault rather than an
+  arbitrary encrypt/decrypt module. Existing CTR values require migration.
